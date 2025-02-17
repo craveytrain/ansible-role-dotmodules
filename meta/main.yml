@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  author: Ian Anderson
+  namespace: getfatday
+  role_name: dotmodules
+  description: >
+    Provides common capabilities for dotfile management and macOS configuration.
+    This role leverages the geerlingguy.mac.homebrew role to install and manage
+    Homebrew packages, and includes tasks for deploying dotfiles and applying OS X defaults.
+    **WARNING: This role is highly experimental and currently untested. Use at your own risk!**
+  company: getfatday
+  license: MIT
+  min_ansible_version: "2.9"
+
+  galaxy_tags:
+    - dotfiles
+    - macos
+    - homebrew
+    - configuration
+    - experimental
+
+  collections:
+    - geerlingguy.mac
+
+dependencies: []

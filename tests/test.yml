@@ -1,0 +1,11 @@
+---
+- name: Local Module Install
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ ansible_env.HOME }}/.dotmodules.tmp"  # Where to clone the repo
+      install:
+        - foo
+  roles:
+    - ansible-role-dotmodules
