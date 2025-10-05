@@ -1,0 +1,36 @@
+#!/bin/bash
+# Development environment setup script
+# This script is deployed via GNU Stow
+
+echo "Setting up development environment..."
+
+# Check if we're on macOS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Detected macOS"
+    
+    # Install Xcode command line tools if not present
+    if ! xcode-select -p &> /dev/null; then
+        echo "Installing Xcode command line tools..."
+        xcode-select --install
+    fi
+    
+    # Install Homebrew if not present
+    if ! command -v brew &> /dev/null; then
+        echo "Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+fi
+
+# Install Node.js global packages
+if command -v npm &> /dev/null; then
+    echo "Installing Node.js global packages..."
+    npm install -g typescript ts-node nodemon
+fi
+
+# Install Python packages
+if command -v pip3 &> /dev/null; then
+    echo "Installing Python packages..."
+    pip3 install --user pipenv black flake8 mypy
+fi
+
+echo "Development environment setup complete!"

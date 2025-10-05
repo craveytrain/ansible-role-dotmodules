@@ -4,8 +4,14 @@
   vars:
     dotmodules:
       repo: "file://{{ playbook_dir }}/modules"
-      dest: "{{ ansible_env.HOME }}/.dotmodules.tmp"  # Where to clone the repo
+      dest: "{{ ansible_env.HOME }}/.dotmodules.test"  # Where to clone the repo
       install:
-        - foo
+        - shell
+        - git
+        - dev-tools
+        - editor
+        - python
+        - node
+        - go
   roles:
     - ansible-role-dotmodules

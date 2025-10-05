@@ -1,0 +1,14 @@
+---
+- name: Load configuration for {{ module_name }}
+  ansible.builtin.include_vars:
+    file: "{{ dotmodules.dest }}/{{ module_name }}/config.yml"
+  register: module_config
+
+# Collect module configuration (global scope)
+- name: Collect configuration for {{ module_name }}
+  ansible.builtin.set_fact:
+    collected_configs: >-
+        {{
+          collected_configs | default({})
+          | combine({ module_name: module_config.ansible_facts }, recursive=True)
+        }}

@@ -1,7 +1,8 @@
 ---
-roles:
-  - name: elliotweiser.osx-command-line-tools
-
 collections:
-  - name: community.general
   - name: geerlingguy.mac
+    version: ">=1.0.0"
+
+roles:
+  - name: geerlingguy.mac.homebrew
+    version: ">=1.0.0"

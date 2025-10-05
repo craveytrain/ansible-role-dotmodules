@@ -1,0 +1,20 @@
+# npm configuration
+# This file is deployed via GNU Stow
+
+# Set default registry
+registry=https://registry.npmjs.org/
+
+# Set cache directory
+cache=~/.npm
+
+# Set prefix for global installs
+prefix=~/.local
+
+# Enable audit
+audit=true
+
+# Set save-exact to true
+save-exact=true
+
+# Set engine-strict to true
+engine-strict=true

@@ -1,0 +1,112 @@
+---
+- name: Determine if dotmodules.repo is a local path
+  set_fact:
+    dotmodules_repo_local: "{{ dotmodules.repo is match('^(file://|/).*') }}"
+
+- name: Remove file:// prefix if present
+  set_fact:
+    dotmodules_repo_path: "{{ dotmodules.repo | regex_replace('^file://', '') }}"
+  when: dotmodules_repo_local
+
+- name: Clone or update dotmodules repository (remote)
+  ansible.builtin.git:
+    repo: "{{ dotmodules.repo }}"
+    dest: "{{ dotmodules.dest }}"
+    version: "main"
+    force: yes
+  when: not dotmodules_repo_local
+
+- name: Link dotmodules folder (for testing)
+  ansible.builtin.file:
+    src: "{{ dotmodules_repo_path }}"
+    dest: "{{ dotmodules.dest }}"
+    state: link
+  when: dotmodules_repo_local
+
+# Initialize aggregated configurations
+- name: Initialize aggregated module configurations
+  ansible.builtin.set_fact:
+    stow_dirs: []
+    collected_configs: {}
+
+- name: Process each dotmodule in the install list
+  ansible.builtin.include_tasks: process_module.yml
+  loop: "{{ dotmodules.install }}"
+  loop_control:
+    loop_var: module_name
+
+# Convert collected_configs to a list of key-value pairs
+- name: Convert collected configurations to key-value pairs
+  ansible.builtin.set_fact:
+    collected_items: >-
+      {{
+        collected_configs | dict2items
+        | map(attribute='value') | list
+        | map('dict2items') | sum(start=[])
+      }}
+
+# Deduplicate list-based values and detect conflicts for scalar values
+- name: Reduce collected configurations
+  ansible.builtin.set_fact:
+    final_config: >-
+      {{
+        final_config | default({}) | combine({
+          item.key: (
+            item.value | flatten | unique
+            if item.value is iterable
+            else (
+              final_config[item.key]
+              if item.key in final_config and final_config[item.key] == item.value
+              else ansible_failed_task | default([]) + [item.key]
+            )
+          )
+        }, recursive=True)
+      }}
+  loop: "{{ collected_items }}"
+
+# Fail if there are conflicting scalar values
+- name: Detect conflicts in scalar values
+  ansible.builtin.fail:
+    msg: "Conflicting values detected for key(s): {{ ansible_failed_task }}"
+  when: ansible_failed_task is defined and ansible_failed_task | length > 0
+
+- name: Debug final_config contents
+  ansible.builtin.debug:
+    var: ansible_facts
+
+# Set reasonable defaults
+- name: Override geerling.mac defaults
+  ansible.builtin.set_fact:
+    homebrew_taps: []
+    mas_installed_apps: []
+
+# Promote each variable from the combined config into a host variable
+- name: Set combined facts
+  ansible.builtin.set_fact:
+    "{{ item.key }}": "{{ item.value }}"
+  loop: "{{ final_config | dict2items }}"
+
+# Run Stow once for all modules
+- name: Deploy all dotfiles using stow
+  ansible.builtin.command: >-
+    stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
+  loop: "{{ stow_dirs }}"
+  when: stow_dirs | length > 0
+
+# Run Homebrew installation once for all modules
+- name: Run Mac App Store installation for all modules using the collection
+  ansible.builtin.include_role:
+    name: "geerlingguy.mac.mas"
+  when: >
+    final_config | dict2items
+    | selectattr('key', 'match', '^mas_')
+    | list | length > 0
+
+  # Run Homebrew installation once for all modules
+- name: Run Homebrew installation for all modules using the collection
+  ansible.builtin.include_role:
+    name: "geerlingguy.mac.homebrew"
+  when: >
+    final_config | dict2items
+    | selectattr('key', 'match', '^homebrew_')
+    | list | length > 0

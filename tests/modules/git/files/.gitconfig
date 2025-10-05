@@ -1,0 +1,47 @@
+[user]
+    name = Ian Anderson
+    email = ian@example.com
+
+[core]
+    editor = vim
+    pager = delta
+    autocrlf = input
+
+[init]
+    defaultBranch = main
+
+[push]
+    default = simple
+    autoSetupRemote = true
+
+[pull]
+    rebase = false
+
+[rebase]
+    autoStash = true
+
+[alias]
+    st = status
+    co = checkout
+    br = branch
+    ci = commit
+    unstage = reset HEAD --
+    last = log -1 HEAD
+    visual = !gitk
+    lg = log --oneline --decorate --graph --all
+    amend = commit --amend --no-edit
+    wip = commit -am "WIP"
+    unwip = reset HEAD~1
+
+[delta]
+    features = side-by-side line-numbers decorations
+    whitespace-error-style = 22 reverse
+    syntax-theme = Dracula
+    line-numbers = true
+    side-by-side = true
+
+[merge]
+    tool = vimdiff
+
+[diff]
+    tool = vimdiff

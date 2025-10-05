@@ -1,0 +1,37 @@
+---
+- name: Test dotmodules role with dependencies
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ ansible_env.HOME }}/.dotmodules.test"
+      install:
+        - shell
+        - git
+        - dev-tools
+        - editor
+        - python
+        - node
+        - go
+  roles:
+    - ansible-role-dotmodules
+  tasks:
+    - name: Test Homebrew packages installation
+      ansible.builtin.debug:
+        msg: "Would install Homebrew packages: {{ homebrew_packages | default([]) }}"
+      
+    - name: Test Homebrew taps installation
+      ansible.builtin.debug:
+        msg: "Would install Homebrew taps: {{ homebrew_taps | default([]) }}"
+      
+    - name: Test Homebrew casks installation
+      ansible.builtin.debug:
+        msg: "Would install Homebrew casks: {{ homebrew_casks | default([]) }}"
+      
+    - name: Test Stow directories
+      ansible.builtin.debug:
+        msg: "Would deploy Stow directories: {{ stow_dirs | default([]) }}"
+      
+    - name: Test MAS apps installation
+      ansible.builtin.debug:
+        msg: "Would install MAS apps: {{ mas_installed_apps | default([]) }}"
