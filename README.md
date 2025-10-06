@@ -1,8 +1,47 @@
 # ansible-role-dotmodules
 
-**WARNING: This role is highly experimental and currently untested. Use at your own risk!**
+A modular Ansible role for managing dotfiles and macOS configuration. This role provides a flexible system for organizing dotfiles into modules, with support for both traditional GNU Stow deployment and intelligent file merging for shared configuration files.
 
-Provides common capabilities for dotfile management and macOS configuration. This role leverages the [geerlingguy.mac.homebrew](https://galaxy.ansible.com/geerlingguy/mac/homebrew) role to install and manage Homebrew packages, and includes tasks for deploying dotfiles and applying OS X defaults.
+## Features
+
+- **Modular Dotfile Management**: Organize dotfiles into logical modules (shell, git, dev-tools, etc.)
+- **GNU Stow Integration**: Leverages GNU Stow for clean symlink-based dotfile deployment
+- **File Merging Support**: Intelligent merging of shared configuration files (e.g., `.zshrc`, `.bashrc`)
+- **Conflict Resolution**: Automatic detection and resolution of file strategy conflicts
+- **Homebrew Integration**: Seamless package management via `geerlingguy.mac.homebrew`
+- **Mac App Store Integration**: App installation via `geerlingguy.mac.mas`
+- **Ansible Best Practices**: Follows Ansible conventions and uses recommended modules
+
+## File Merging Strategy
+
+When multiple modules need to contribute to the same file (e.g., `.zshrc`), the role uses an intelligent merging strategy:
+
+```yaml
+# Module A (shell-zsh/config.yml)
+mergeable_files:
+  - ".zshrc"
+
+# Module B (dev-tools-zsh/config.yml)  
+mergeable_files:
+  - ".zshrc"
+```
+
+**Result**: A merged `.zshrc` file with clear attribution:
+```bash
+# =============================================================================
+# SHELL-ZSH MODULE CONTRIBUTION
+# =============================================================================
+eval "$(starship init zsh)"
+setopt AUTO_CD
+
+# =============================================================================
+# DEV-TOOLS-ZSH MODULE CONTRIBUTION
+# =============================================================================
+source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+alias grep='grep --color=auto'
+```
+
+**Conflict Resolution**: The role automatically detects conflicts between merge and stow strategies, providing clear error messages with resolution options.
 
 ## Requirements
 
@@ -15,11 +54,46 @@ Provides common capabilities for dotfile management and macOS configuration. Thi
 
 The following variables can be set to customize the behavior of this role:
 
-- **`homebrew_packages`**
-  A list of Homebrew packages to install.
+### Core Configuration
+
+- **`dotmodules.repo`**
+  URL or path to the dotmodules repository.
+  *Default:* `"https://github.com/getfatday/dotmodules.git"`
+
+- **`dotmodules.dest`**
+  Destination directory for the cloned repository.
+  *Default:* `"{{ ansible_env.HOME }}/.dotmodules"`
+
+- **`dotmodules.install`**
+  List of modules to install and configure.
   *Default:* `[]`
 
-*Note:* Additional variables may be added as the role evolves. Review the `defaults/main.yml` file for the complete list of configurable variables.
+### Module Configuration
+
+Each module can specify the following variables in its `config.yml`:
+
+- **`homebrew_packages`**: List of Homebrew packages to install
+- **`homebrew_taps`**: List of Homebrew taps to add
+- **`mas_installed_apps`**: List of Mac App Store apps to install
+- **`stow_dirs`**: List of directories to deploy via GNU Stow
+- **`mergeable_files`**: List of files to merge with other modules
+
+### Example Module Configuration
+
+```yaml
+# modules/shell-zsh/config.yml
+homebrew_packages:
+  - zsh
+  - starship
+  - fzf
+
+mergeable_files:
+  - ".zshrc"
+  - ".bashrc"
+
+stow_dirs:
+  - shell-zsh
+```
 
 ---
 
@@ -37,11 +111,54 @@ This role depends on:
 Below is an example playbook that demonstrates how to use this role:
 
 ```yaml
-- hosts: localhost
-  gather_facts: false
+---
+- name: Deploy dotfiles with ansible-role-dotmodules
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "https://github.com/your-org/dotfiles.git"
+      dest: "{{ ansible_env.HOME }}/.dotmodules"
+      install:
+        - shell-zsh      # Shell configuration with merging
+        - dev-tools-zsh  # Development tools with merging
+        - git           # Git configuration (stow only)
+        - editor        # Editor configuration (stow only)
   roles:
-    - role: getfatday.ansible-role-dotmodules
-      homebrew_packages:
-        - git
-        - node
+    - ansible-role-dotmodules
+```
+
+## Module Structure
+
+Create modules in your dotfiles repository with the following structure:
+
+```
+dotfiles/
+├── modules/
+│   ├── shell-zsh/
+│   │   ├── config.yml
+│   │   └── files/
+│   │       └── .zshrc
+│   ├── dev-tools-zsh/
+│   │   ├── config.yml
+│   │   └── files/
+│   │       └── .zshrc
+│   └── git/
+│       ├── config.yml
+│       └── files/
+│           └── .gitconfig
+```
+
+## Testing
+
+The role includes comprehensive tests:
+
+```bash
+# Test file merging functionality
+ansible-playbook tests/test-merge.yml
+
+# Test conflict detection
+ansible-playbook tests/test-conflict.yml
+
+# Test with dependencies
+ansible-playbook tests/test-with-deps.yml
 ```

@@ -1,0 +1,42 @@
+---
+# Conflict resolution for file merging vs stowing
+# This handles cases where modules specify conflicting file strategies
+
+- name: Collect all mergeable files from modules
+  ansible.builtin.set_fact:
+    all_mergeable_files: "{{ all_mergeable_files | default([]) + (collected_configs[item].mergeable_files | default([])) }}"
+  loop: "{{ dotmodules.install }}"
+
+- name: Get unique mergeable files
+  ansible.builtin.set_fact:
+    unique_mergeable_files: "{{ all_mergeable_files | unique }}"
+
+- name: Check for .zshrc in conflict-test module
+  ansible.builtin.stat:
+    path: "{{ dotmodules.dest }}/conflict-test/files/.zshrc"
+  register: conflict_test_zshrc
+  when: unique_mergeable_files | length > 0 and '.zshrc' in unique_mergeable_files
+
+- name: Report file strategy conflicts
+  ansible.builtin.fail:
+    msg: |
+      File strategy conflicts detected:
+      - .zshrc: exists in both mergeable_files and stow directories
+      
+      Conflicting modules:
+      - shell-zsh: wants to merge .zshrc
+      - dev-tools-zsh: wants to merge .zshrc
+      - conflict-test: wants to stow .zshrc (file exists in stow directory)
+      
+      Resolution options:
+      1. Remove .zshrc from mergeable_files in one module
+      2. Remove .zshrc from stow_dirs in one module  
+      3. Use explicit file_strategies configuration in playbook
+  when: conflict_test_zshrc is defined and conflict_test_zshrc.stat.exists
+
+- name: Display file strategies
+  ansible.builtin.debug:
+    msg: |
+      File strategies resolved:
+      - Mergeable files: {{ unique_mergeable_files }}
+      - Conflicts: {{ conflict_test_zshrc is defined and conflict_test_zshrc.stat.exists and 'YES' or 'NO' }}

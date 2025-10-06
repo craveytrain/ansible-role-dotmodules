@@ -1,0 +1,38 @@
+---
+# File merging tasks for ansible-role-dotmodules
+# This handles files that need to be merged rather than stowed
+
+- name: Collect mergeable files from all modules
+  ansible.builtin.set_fact:
+    all_mergeable_files: "{{ all_mergeable_files | default([]) + (collected_configs[item].mergeable_files | default([])) }}"
+  loop: "{{ dotmodules.install }}"
+
+- name: Get unique mergeable files
+  ansible.builtin.set_fact:
+    unique_mergeable_files: "{{ all_mergeable_files | unique }}"
+
+- name: Create merged files directory
+  ansible.builtin.file:
+    path: "{{ dotmodules.dest }}/merged"
+    state: directory
+
+- name: Merge files from all contributing modules
+  ansible.builtin.template:
+    src: "merged_file.j2"
+    dest: "{{ dotmodules.dest }}/merged/{{ item }}"
+    mode: '0644'
+  loop: "{{ unique_mergeable_files }}"
+  vars:
+    target_file: "{{ item }}"
+    contributing_modules: "{{ dotmodules.install }}"
+
+- name: Deploy merged files using stow
+  ansible.builtin.command: >-
+    stow -d "{{ dotmodules.dest }}/merged" -t "{{ ansible_env.HOME }}" .
+  when: unique_mergeable_files | length > 0
+  register: merged_stow_result
+
+- name: Display merged files deployment result
+  ansible.builtin.debug:
+    msg: "Merged files deployed: {{ merged_stow_result.stdout_lines | default([]) }}"
+  when: merged_stow_result is defined

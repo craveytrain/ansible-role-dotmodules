@@ -1,0 +1,14 @@
+---
+- name: Test File Merging Functionality
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ ansible_env.HOME }}/.dotmodules.merge-test"
+      install:
+        - shell-zsh
+        - dev-tools-zsh
+        - shell  # This module has .zshrc but no mergeable_files config
+        - git    # This module has .gitconfig but no mergeable_files config
+  roles:
+    - ansible-role-dotmodules

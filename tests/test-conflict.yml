@@ -1,0 +1,14 @@
+---
+# Test playbook to demonstrate conflict resolution
+- name: Test File Strategy Conflicts
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ ansible_env.HOME }}/.dotmodules.conflict-test"
+      install:
+        - shell-zsh      # Wants to merge .zshrc
+        - dev-tools-zsh  # Wants to merge .zshrc  
+        - conflict-test # Wants to stow .zshrc (CONFLICT!)
+  roles:
+    - ansible-role-dotmodules

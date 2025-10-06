@@ -86,7 +86,17 @@
     "{{ item.key }}": "{{ item.value }}"
   loop: "{{ final_config | dict2items }}"
 
-# Run Stow once for all modules
+# Resolve file strategy conflicts first
+- name: Resolve file strategy conflicts
+  ansible.builtin.include_tasks: conflict_resolution.yml
+  when: dotmodules.install | length > 0
+
+# Handle mergeable files
+- name: Process mergeable files
+  ansible.builtin.include_tasks: merge_files.yml
+  when: dotmodules.install | length > 0
+
+# Run Stow once for all modules (non-mergeable files)
 - name: Deploy all dotfiles using stow
   ansible.builtin.command: >-
     stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
