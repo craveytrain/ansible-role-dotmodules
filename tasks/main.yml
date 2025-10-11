@@ -95,13 +95,19 @@
 # Filter out modules that have mergeable files to prevent conflicts
 - name: Create list of modules with mergeable files
   ansible.builtin.set_fact:
+    modules_with_mergeable_files: []
+
+- name: Check each module for mergeable files
+  ansible.builtin.set_fact:
     modules_with_mergeable_files: >-
       {{
-        dotmodules.install | select('in', collected_configs)
-        | select('extract', collected_configs, 'mergeable_files')
-        | select('defined') | select('length') | select('>', 0)
-        | list
+        modules_with_mergeable_files +
+        ([item] if (collected_configs[item].mergeable_files is defined and
+                    collected_configs[item].mergeable_files | length > 0)
+         else [])
       }}
+  loop: "{{ dotmodules.install }}"
+  when: item in collected_configs
 
 - name: Debug filtering results
   ansible.builtin.debug:
