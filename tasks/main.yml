@@ -52,13 +52,9 @@
       {{
         final_config | default({}) | combine({
           item.key: (
-            item.value | flatten | unique
-            if item.value is iterable
-            else (
-              final_config[item.key]
-              if item.key in final_config and final_config[item.key] == item.value
-              else ansible_failed_task | default([]) + [item.key]
-            )
+            ((final_config | default({}))[item.key] | default([]) + item.value) | flatten | unique
+            if item.value is iterable and item.value is not string and item.value is not mapping
+            else item.value
           )
         }, recursive=True)
       }}
@@ -128,7 +124,7 @@
 # Run Stow once for all modules (excluding those with mergeable files)
 - name: Deploy all dotfiles using stow (non-mergeable files only)
   ansible.builtin.command: >-
-    stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
+    stow --adopt -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
   loop: "{{ stow_dirs_filtered }}"
   when: stow_dirs_filtered | length > 0
 
@@ -141,11 +137,17 @@
     | selectattr('key', 'match', '^mas_')
     | list | length > 0
 
+
   # Run Homebrew installation once for all modules
-- name: Run Homebrew installation for all modules using the collection
-  ansible.builtin.include_role:
-    name: "geerlingguy.mac.homebrew"
-  when: >
-    final_config | dict2items
-    | selectattr('key', 'match', '^homebrew_')
-    | list | length > 0
+- name: Install Homebrew packages
+  community.general.homebrew:
+    name: "{{ homebrew_packages }}"
+    state: present
+  when: homebrew_packages is defined and homebrew_packages | length > 0
+
+- name: Install Homebrew casks
+  community.general.homebrew_cask:
+    name: "{{ homebrew_casks }}"
+    state: present
+    accept_external_apps: yes
+  when: homebrew_casks is defined and homebrew_casks | length > 0
