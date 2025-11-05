@@ -127,6 +127,20 @@
   loop: "{{ stow_dirs_filtered }}"
   when: stow_dirs_filtered | length > 0
 
+# Install git repositories (before Homebrew to ensure dependencies are available)
+- name: Ensure configured git repositories are installed
+  ansible.builtin.git:
+    repo: "{{ item.repo }}"
+    dest: "{{ item.dest | expanduser }}"
+    version: "{{ item.version | default('master') }}"
+    update: "{{ item.update | default(true) | bool }}"
+    force: "{{ item.force | default(false) | bool }}"
+    recursive: "{{ item.recursive | default(true) | bool }}"
+  loop: "{{ git_repositories | default([]) }}"
+  when: git_repositories is defined and git_repositories | length > 0
+  loop_control:
+    label: "{{ item.repo }} -> {{ item.dest }}"
+
 # Run Homebrew installation once for all modules
 - name: Run Mac App Store installation for all modules using the collection
   ansible.builtin.include_role:
