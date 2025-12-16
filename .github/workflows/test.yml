@@ -51,3 +51,8 @@ jobs:
       run: |
         cd tests
         ansible-playbook test-with-deps.yml
+
+    - name: Run merge and stow test
+      run: |
+        cd tests
+        ansible-playbook test-merge-and-stow.yml

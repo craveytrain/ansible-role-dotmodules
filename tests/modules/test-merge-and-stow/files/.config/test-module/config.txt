@@ -1,0 +1,3 @@
+# This file should be stowed even though the module has a mergeable_file
+# It's in the stow_dir: test-merge-and-stow
+test_config_value=stowed_successfully

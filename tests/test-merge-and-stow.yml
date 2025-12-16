@@ -1,0 +1,90 @@
+---
+# Test playbook to verify that modules with mergeable_files still get their stow_dirs deployed
+- name: Test Mergeable Files and Stow Dirs Together
+  hosts: localhost
+  vars:
+    test_home: "{{ lookup('env', 'HOME') }}/.dotmodules-test-home"
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ test_home }}/.dotmodules.merge-stow-test"
+      install:
+        - test-merge-and-stow  # Has both mergeable_file (.zshrc) and stow_dir
+        - shell-zsh            # Also has mergeable_file (.zshrc) to test merging
+    home_dir: "{{ test_home }}"
+  pre_tasks:
+    - name: Create test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: directory
+  roles:
+    - ansible-role-dotmodules
+  post_tasks:
+    - name: Debug - List files in test home
+      ansible.builtin.shell: |
+        find {{ test_home }} -type f -o -type l | head -20
+      register: test_home_files
+      changed_when: false
+
+    - name: Debug - Show test home files
+      ansible.builtin.debug:
+        var: test_home_files.stdout_lines
+
+    - name: Debug - Check if .config exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config"
+      register: config_dir_stat
+
+    - name: Debug - Show .config status
+      ansible.builtin.debug:
+        msg: |
+          .config exists: {{ config_dir_stat.stat.exists | default(false) }}
+          .config is symlink: {{ config_dir_stat.stat.islnk | default(false) }}
+          .config path: {{ config_dir_stat.stat.path | default('N/A') }}
+
+    - name: Verify merged .zshrc file exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.zshrc"
+      register: merged_zshrc
+
+    - name: Verify merged .zshrc contains test module contribution
+      ansible.builtin.shell: |
+        grep -q "TEST_MERGE_AND_STOW" "{{ test_home }}/.zshrc"
+      register: grep_result
+      changed_when: false
+      failed_when: false
+
+    - name: Assert merged .zshrc exists and contains test module content
+      ansible.builtin.assert:
+        that:
+          - merged_zshrc.stat.exists
+          - grep_result.rc == 0
+        fail_msg: "Merged .zshrc file does not exist or does not contain test module contribution"
+        success_msg: "Merged .zshrc file exists and contains test module contribution"
+
+    - name: Verify stowed config file exists and is a symlink
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config/test-module/config.txt"
+      register: stowed_config
+
+    - name: Assert stowed config file exists and is symlinked
+      ansible.builtin.assert:
+        that:
+          - stowed_config.stat.exists
+          - stowed_config.stat.islnk
+        fail_msg: "Stowed config file does not exist or is not a symlink (stow_dir was not deployed)"
+        success_msg: "Stowed config file exists and is properly symlinked (stow_dir was deployed correctly)"
+
+    - name: Display test results
+      ansible.builtin.debug:
+        msg: |
+          Test Results:
+          - Merged .zshrc exists: {{ merged_zshrc.stat.exists }}
+          - Merged .zshrc contains test content: {{ grep_result.rc == 0 }}
+          - Stowed config exists: {{ stowed_config.stat.exists }}
+          - Stowed config is symlink: {{ stowed_config.stat.islnk | default(false) }}
+
+    - name: Clean up test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: absent
+      when: test_home != lookup('env', 'HOME')

@@ -3,3 +3,6 @@ dotmodules:
   repo: "https://github.com/craveytrain/dotmodules.git"
   install: []
   dest: "{{ lookup('env', 'HOME') }}/.dotmodules"  # Where to clone the repo
+
+# Allow overriding the home directory (useful for testing)
+home_dir: "{{ lookup('env', 'HOME') }}"
