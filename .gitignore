@@ -3,3 +3,7 @@
 *.retry
 roles*
 config.yml
+
+# Test-generated files
+tests/modules/merged/
+**/.stow-temp/
