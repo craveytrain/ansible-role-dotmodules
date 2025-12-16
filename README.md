@@ -58,7 +58,7 @@ The following variables can be set to customize the behavior of this role:
 
 - **`dotmodules.repo`**
   URL or path to the dotmodules repository.
-  *Default:* `"https://github.com/getfatday/dotmodules.git"`
+  *Default:* `"https://github.com/craveytrain/dotmodules.git"`
 
 - **`dotmodules.dest`**
   Destination directory for the cloned repository.

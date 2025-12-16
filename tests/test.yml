@@ -4,7 +4,7 @@
   vars:
     dotmodules:
       repo: "file://{{ playbook_dir }}/modules"
-      dest: "{{ ansible_env.HOME }}/.dotmodules.test"  # Where to clone the repo
+      dest: "{{ lookup('env', 'HOME') }}/.dotmodules.test"  # Where to clone the repo
       install:
         - shell
         - git

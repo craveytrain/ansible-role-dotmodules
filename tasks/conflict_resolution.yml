@@ -16,6 +16,8 @@
     path: "{{ dotmodules.dest }}/conflict-test/files/.zshrc"
   register: conflict_test_zshrc
   when: unique_mergeable_files | length > 0 and '.zshrc' in unique_mergeable_files
+  failed_when: false
+  changed_when: false
 
 - name: Report file strategy conflicts
   ansible.builtin.fail:
@@ -32,7 +34,11 @@
       1. Remove .zshrc from mergeable_files in one module
       2. Remove .zshrc from stow_dirs in one module  
       3. Use explicit file_strategies configuration in playbook
-  when: conflict_test_zshrc is defined and conflict_test_zshrc.stat.exists
+  when: >
+    conflict_test_zshrc is defined
+    and conflict_test_zshrc.skipped is not defined
+    and conflict_test_zshrc.stat is defined
+    and conflict_test_zshrc.stat.exists | default(false)
 
 - name: Display file strategies
   ansible.builtin.debug:
@@ -41,4 +47,4 @@
       - Mergeable files: {{ unique_mergeable_files }}
       - Modules with mergeable files: {{ modules_with_mergeable_files | default([]) }}
       - Stow directories (filtered): {{ stow_dirs_filtered | default([]) }}
-      - Conflicts: {{ conflict_test_zshrc is defined and conflict_test_zshrc.stat.exists and 'YES' or 'NO' }}
+      - Conflicts: {{ (conflict_test_zshrc is defined and conflict_test_zshrc.skipped is not defined and conflict_test_zshrc.stat is defined and conflict_test_zshrc.stat.exists) | ternary('YES', 'NO') }}
