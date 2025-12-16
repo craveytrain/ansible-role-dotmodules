@@ -26,13 +26,32 @@
     target_file: "{{ item }}"
     contributing_modules: "{{ dotmodules.install }}"
 
+- name: Unstow merged files if already stowed
+  ansible.builtin.command: >-
+    stow -D -d "{{ dotmodules.dest }}/merged" -t "{{ home_dir }}" .
+  when: unique_mergeable_files | length > 0
+  ignore_errors: yes
+
+- name: Check status of conflicting merged files
+  ansible.builtin.stat:
+    path: "{{ home_dir }}/{{ item }}"
+    follow: no
+  loop: "{{ unique_mergeable_files }}"
+  register: file_status_check
+  when: unique_mergeable_files | length > 0
+
+- name: Remove existing files (will be replaced by stow symlinks)
+  ansible.builtin.file:
+    path: "{{ home_dir }}/{{ item.item }}"
+    state: absent
+  loop: "{{ file_status_check.results | default([]) }}"
+  when: >
+    unique_mergeable_files | length > 0
+    and item.stat is defined
+    and item.stat.exists
+
 - name: Deploy merged files using stow
   ansible.builtin.command: >-
-    stow --adopt -d "{{ dotmodules.dest }}/merged" -t "{{ lookup('env', 'HOME') }}" .
+    stow -d "{{ dotmodules.dest }}/merged" -t "{{ home_dir }}" .
   when: unique_mergeable_files | length > 0
   register: merged_stow_result
-
-- name: Display merged files deployment result
-  ansible.builtin.debug:
-    msg: "Merged files deployed: {{ merged_stow_result.stdout_lines | default([]) }}"
-  when: merged_stow_result is defined

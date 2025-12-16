@@ -1,0 +1,102 @@
+---
+# Task to stow a module's files, excluding any mergeable files
+# This is needed because mergeable files are handled separately via the merged directory
+
+- name: Get mergeable files for {{ module_name }}
+  ansible.builtin.set_fact:
+    module_mergeable_files: "{{ collected_configs[module_name].mergeable_files | default([]) }}"
+
+- name: Check if module has mergeable files
+  ansible.builtin.set_fact:
+    module_has_mergeable_files: "{{ module_mergeable_files | length > 0 }}"
+
+- name: Build ignore patterns for stow (escape dots for Perl regex)
+  ansible.builtin.set_fact:
+    escaped_mergeable_files: >-
+      {{
+        module_mergeable_files
+        | map('replace', '.', '\\.')
+        | list
+      }}
+  when: module_has_mergeable_files | bool
+
+- name: Build ignore arguments for stow
+  ansible.builtin.set_fact:
+    stow_ignore_args: >-
+      {% for file in escaped_mergeable_files %}--ignore=^{{ file }}$ {% endfor %}
+  when: module_has_mergeable_files | bool
+
+- name: Unstow module files if already stowed
+  ansible.builtin.command: >-
+    stow -D -d "{{ dotmodules.dest }}/{{ module_name }}" -t "{{ home_dir }}" {{ stow_ignore_args | default('') }} files
+  when: module_has_mergeable_files | bool
+  ignore_errors: yes
+
+- name: Unstow module files if already stowed (no mergeable files)
+  ansible.builtin.command: >-
+    stow -D -d "{{ dotmodules.dest }}/{{ module_name }}" -t "{{ home_dir }}" files
+  when: not (module_has_mergeable_files | bool)
+  ignore_errors: yes
+
+- name: Find files that will be stowed
+  ansible.builtin.find:
+    paths: "{{ dotmodules.dest }}/{{ module_name }}/files"
+    recurse: yes
+    file_type: file
+  register: files_to_stow
+
+- name: Filter out mergeable files from files to stow
+  ansible.builtin.set_fact:
+    files_to_stow_filtered: >-
+      {{
+        files_to_stow.files | default([])
+        | map(attribute='path')
+        | reject('search', '(' + (module_mergeable_files | map('regex_escape') | join('|')) + ')$')
+        | list
+      }}
+  when: module_has_mergeable_files | bool
+
+- name: Use all files when no mergeable files
+  ansible.builtin.set_fact:
+    files_to_stow_filtered: "{{ files_to_stow.files | default([]) | map(attribute='path') | list }}"
+  when: not (module_has_mergeable_files | bool)
+
+- name: Calculate target paths
+  ansible.builtin.set_fact:
+    target_files: >-
+      {{
+        files_to_stow_filtered
+        | map('regex_replace', '^' + dotmodules.dest + '/' + module_name + '/files/', '')
+        | map('regex_replace', '^', home_dir + '/')
+        | list
+      }}
+
+- name: Check existing files for conflicts
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: no
+  register: existing_files
+  loop: "{{ target_files }}"
+  ignore_errors: yes
+
+- name: Remove existing files (will be replaced by stow symlinks)
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: absent
+  loop: "{{ existing_files.results | default([]) }}"
+  when: >
+    item.stat is defined
+    and item.stat.exists
+  ignore_errors: yes
+
+- name: Deploy module files using stow with --no-folding and ignore patterns
+  ansible.builtin.command: >-
+    stow --no-folding -d "{{ dotmodules.dest }}/{{ module_name }}" -t "{{ home_dir }}" {{ stow_ignore_args | default('') }} files
+  when: module_has_mergeable_files | bool
+  register: stow_result
+
+- name: Deploy module files using stow with --no-folding
+  ansible.builtin.command: >-
+    stow --no-folding -d "{{ dotmodules.dest }}/{{ module_name }}" -t "{{ home_dir }}" files
+  when: not (module_has_mergeable_files | bool)
+  register: stow_result

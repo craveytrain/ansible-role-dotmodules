@@ -1,0 +1,9 @@
+---
+# Test module that has both mergeable_files and stow_dirs
+# This tests that modules with mergeable files still get their stow_dirs deployed
+
+mergeable_files:
+  - ".zshrc"
+
+stow_dirs:
+  - test-merge-and-stow

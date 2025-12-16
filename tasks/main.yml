@@ -23,6 +23,11 @@
     state: link
   when: dotmodules_repo_local
 
+# Set home directory (allow override for testing)
+- name: Set home directory
+  ansible.builtin.set_fact:
+    home_dir: "{{ home_dir | default(lookup('env', 'HOME')) }}"
+
 # Initialize aggregated configurations
 - name: Initialize aggregated module configurations
   ansible.builtin.set_fact:
@@ -99,44 +104,13 @@
   ansible.builtin.include_tasks: merge_files.yml
   when: dotmodules.install | length > 0
 
-# Filter out modules that have mergeable files to prevent conflicts
-- name: Initialize modules_with_mergeable_files
-  ansible.builtin.set_fact:
-    modules_with_mergeable_files: []
-
-- name: Create list of modules with mergeable files
-  ansible.builtin.set_fact:
-    modules_with_mergeable_files: "{{ modules_with_mergeable_files | default([]) + [item] }}"
-  loop: "{{ dotmodules.install }}"
-  when: >
-    item in collected_configs
-    and collected_configs[item].mergeable_files is defined
-    and collected_configs[item].mergeable_files | length > 0
-
-- name: Debug filtering results
-  ansible.builtin.debug:
-    msg: |
-      Filtering results:
-      - Original stow_dirs: {{ stow_dirs }}
-      - Modules with mergeable files: {{ modules_with_mergeable_files | default([]) }}
-      - Collected configs keys: {{ collected_configs.keys() | list }}
-
-- name: Filter stow directories to exclude modules with mergeable files
-  ansible.builtin.set_fact:
-    stow_dirs_filtered: "{{ stow_dirs | difference(modules_with_mergeable_files | default([])) }}"
-
-- name: Debug final filtering results
-  ansible.builtin.debug:
-    msg: |
-      Final filtering results:
-      - Filtered stow_dirs: {{ stow_dirs_filtered }}
-
-# Run Stow once for all modules (excluding those with mergeable files)
-- name: Deploy all dotfiles using stow (non-mergeable files only)
-  ansible.builtin.command: >-
-    stow --adopt -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ lookup('env', 'HOME') }}" files
-  loop: "{{ stow_dirs_filtered }}"
-  when: stow_dirs_filtered | length > 0
+# Run Stow once for all modules (excluding mergeable files)
+- name: Deploy all dotfiles using stow
+  ansible.builtin.include_tasks: stow_module.yml
+  loop: "{{ stow_dirs }}"
+  loop_control:
+    loop_var: module_name
+  when: stow_dirs | length > 0
 
 # Install git repositories (before Homebrew to ensure dependencies are available)
 - name: Ensure configured git repositories are installed
