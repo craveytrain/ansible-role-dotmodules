@@ -43,6 +43,32 @@ alias grep='grep --color=auto'
 
 **Conflict Resolution**: The role automatically detects conflicts between merge and stow strategies, providing clear error messages with resolution options.
 
+### Nested Directory Support
+
+The role now supports mergeable files in nested directories, enabling better organization of configuration files:
+
+```yaml
+# Module configuration with nested paths
+mergeable_files:
+  - ".zshrc"                              # Root-level (as before)
+  - ".zsh/aliases.sh"                     # Single-level nesting (NEW)
+  - ".config/fish/conf.d/custom.fish"     # Multi-level nesting (NEW)
+```
+
+**Directory Structure**: Parent directories are automatically created, and files are symlinked individually using GNU Stow's `--no-folding` option, allowing merged and stowed files to coexist in the same directory.
+
+**Example**:
+```
+~/
+├── .zshrc                              # Merged root-level file
+├── .zsh/
+│   └── aliases.sh                      # Merged nested file
+└── .config/
+    └── fish/
+        └── conf.d/
+            └── custom.fish             # Merged deeply nested file
+```
+
 ## Requirements
 
 - **Operating System:** macOS
@@ -88,7 +114,8 @@ homebrew_packages:
   - fzf
 
 mergeable_files:
-  - ".zshrc"
+  - ".zshrc"                    # Root-level file
+  - ".zsh/aliases.sh"           # Nested file
   - ".bashrc"
 
 stow_dirs:
