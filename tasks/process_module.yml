@@ -1,8 +1,20 @@
 ---
+- name: Check if config.yml exists for {{ module_name }}
+  ansible.builtin.stat:
+    path: "{{ dotmodules.dest }}/{{ module_name }}/config.yml"
+  register: config_file_stat
+
 - name: Load configuration for {{ module_name }}
   ansible.builtin.include_vars:
     file: "{{ dotmodules.dest }}/{{ module_name }}/config.yml"
   register: module_config
+  when: config_file_stat.stat.exists
+
+- name: Set empty config for {{ module_name }} if config.yml doesn't exist
+  ansible.builtin.set_fact:
+    module_config:
+      ansible_facts: {}
+  when: not config_file_stat.stat.exists
 
 # Collect module configuration (global scope)
 - name: Collect configuration for {{ module_name }}

@@ -1,0 +1,53 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+        
+    - name: Install Ansible
+      run: |
+        pip install ansible
+        
+    - name: Install GNU Stow
+      run: |
+        brew install stow
+        
+    - name: Install Ansible collections
+      run: |
+        cd tests
+        ansible-galaxy collection install -r requirements.yml
+        
+    - name: Run basic test
+      run: |
+        cd tests
+        ansible-playbook test.yml
+        
+    - name: Run merge test
+      run: |
+        cd tests
+        ansible-playbook test-merge.yml
+        
+    - name: Run conflict test
+      run: |
+        cd tests
+        ansible-playbook test-conflict.yml
+        
+    - name: Run test with dependencies
+      run: |
+        cd tests
+        ansible-playbook test-with-deps.yml

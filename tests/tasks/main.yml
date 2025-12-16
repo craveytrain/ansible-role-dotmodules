@@ -89,7 +89,7 @@
 # Run Stow once for all modules
 - name: Deploy all dotfiles using stow
   ansible.builtin.command: >-
-    stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
+    stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ lookup('env', 'HOME') }}" files
   loop: "{{ stow_dirs }}"
   when: stow_dirs | length > 0
 

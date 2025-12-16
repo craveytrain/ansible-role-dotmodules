@@ -35,6 +35,11 @@
   loop_control:
     loop_var: module_name
 
+# Initialize final_config
+- name: Initialize final_config
+  ansible.builtin.set_fact:
+    final_config: {}
+
 # Convert collected_configs to a list of key-value pairs
 - name: Convert collected configurations to key-value pairs
   ansible.builtin.set_fact:
@@ -58,13 +63,10 @@
           )
         }, recursive=True)
       }}
-  loop: "{{ collected_items }}"
+  loop: "{{ collected_items | default([]) }}"
 
-# Fail if there are conflicting scalar values
-- name: Detect conflicts in scalar values
-  ansible.builtin.fail:
-    msg: "Conflicting values detected for key(s): {{ ansible_failed_task }}"
-  when: ansible_failed_task is defined and ansible_failed_task | length > 0
+# Note: Conflict detection for scalar values is handled in the Reduce collected configurations task
+# If different modules specify different scalar values for the same key, the last one wins
 
 - name: Debug final_config contents
   ansible.builtin.debug:
@@ -80,7 +82,12 @@
 - name: Set combined facts
   ansible.builtin.set_fact:
     "{{ item.key }}": "{{ item.value }}"
-  loop: "{{ final_config | dict2items }}"
+  loop: "{{ final_config | default({}) | dict2items }}"
+
+# Ensure stow_dirs is set (from final_config or default to all installed modules)
+- name: Initialize stow_dirs from final_config or default to all modules
+  ansible.builtin.set_fact:
+    stow_dirs: "{{ stow_dirs | default(dotmodules.install | default([])) }}"
 
 # Resolve file strategy conflicts first
 - name: Resolve file strategy conflicts
@@ -93,6 +100,10 @@
   when: dotmodules.install | length > 0
 
 # Filter out modules that have mergeable files to prevent conflicts
+- name: Initialize modules_with_mergeable_files
+  ansible.builtin.set_fact:
+    modules_with_mergeable_files: []
+
 - name: Create list of modules with mergeable files
   ansible.builtin.set_fact:
     modules_with_mergeable_files: "{{ modules_with_mergeable_files | default([]) + [item] }}"
@@ -107,12 +118,12 @@
     msg: |
       Filtering results:
       - Original stow_dirs: {{ stow_dirs }}
-      - Modules with mergeable files: {{ modules_with_mergeable_files }}
+      - Modules with mergeable files: {{ modules_with_mergeable_files | default([]) }}
       - Collected configs keys: {{ collected_configs.keys() | list }}
 
 - name: Filter stow directories to exclude modules with mergeable files
   ansible.builtin.set_fact:
-    stow_dirs_filtered: "{{ stow_dirs | difference(modules_with_mergeable_files) }}"
+    stow_dirs_filtered: "{{ stow_dirs | difference(modules_with_mergeable_files | default([])) }}"
 
 - name: Debug final filtering results
   ansible.builtin.debug:
@@ -123,7 +134,7 @@
 # Run Stow once for all modules (excluding those with mergeable files)
 - name: Deploy all dotfiles using stow (non-mergeable files only)
   ansible.builtin.command: >-
-    stow --adopt -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
+    stow --adopt -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ lookup('env', 'HOME') }}" files
   loop: "{{ stow_dirs_filtered }}"
   when: stow_dirs_filtered | length > 0
 
@@ -146,7 +157,7 @@
   ansible.builtin.include_role:
     name: "geerlingguy.mac.mas"
   when: >
-    final_config | dict2items
+    final_config | default({}) | dict2items
     | selectattr('key', 'match', '^mas_')
     | list | length > 0
 

@@ -5,7 +5,7 @@
   vars:
     dotmodules:
       repo: "file://{{ playbook_dir }}/modules"
-      dest: "{{ ansible_env.HOME }}/.dotmodules.conflict-test"
+      dest: "{{ lookup('env', 'HOME') }}/.dotmodules.conflict-test"
       install:
         - shell-zsh      # Wants to merge .zshrc
         - dev-tools-zsh  # Wants to merge .zshrc  

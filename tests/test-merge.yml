@@ -4,7 +4,7 @@
   vars:
     dotmodules:
       repo: "file://{{ playbook_dir }}/modules"
-      dest: "{{ ansible_env.HOME }}/.dotmodules.merge-test"
+      dest: "{{ lookup('env', 'HOME') }}/.dotmodules.merge-test"
       install:
         - shell-zsh
         - dev-tools-zsh
