@@ -7,3 +7,8 @@ config.yml
 # Test-generated files
 tests/modules/merged/
 **/.stow-temp/
+
+# Claude Code and spec-kit files
+.claude/settings.local.json
+CLAUDE.md
+specs/
