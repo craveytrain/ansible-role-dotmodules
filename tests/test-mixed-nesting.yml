@@ -1,0 +1,128 @@
+---
+# Test playbook for TC-004: Mixed Nested Levels in Same Module
+- name: Test Mixed Nesting Levels (Root + Single + Multi)
+  hosts: localhost
+  vars:
+    test_home: "{{ lookup('env', 'HOME') }}/.dotmodules-test-mixed-nesting"
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ test_home }}/.dotmodules"
+      install:
+        - test-mixed
+    home_dir: "{{ test_home }}"
+
+  pre_tasks:
+    - name: Create test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: directory
+
+  roles:
+    - ansible-role-dotmodules
+
+  post_tasks:
+    - name: Debug - List all files and directories
+      ansible.builtin.shell: |
+        find {{ test_home }} -type f -o -type l -o -type d | sort
+      register: test_home_files
+      changed_when: false
+
+    - name: Debug - Show test home structure
+      ansible.builtin.debug:
+        var: test_home_files.stdout_lines
+
+    - name: Verify root-level .bashrc exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.bashrc"
+      register: root_file
+
+    - name: Verify single-level .bash/aliases.sh exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.bash/aliases.sh"
+      register: single_file
+
+    - name: Verify multi-level .config/bash/rc.d/env.sh exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config/bash/rc.d/env.sh"
+      register: multi_file
+
+    - name: Assert all three files exist
+      ansible.builtin.assert:
+        that:
+          - root_file.stat.exists
+          - single_file.stat.exists
+          - multi_file.stat.exists
+        fail_msg: "Not all files were created (root={{ root_file.stat.exists }}, single={{ single_file.stat.exists }}, multi={{ multi_file.stat.exists }})"
+        success_msg: "All three nesting levels created successfully"
+
+    - name: Assert all files are symlinks
+      ansible.builtin.assert:
+        that:
+          - root_file.stat.islnk
+          - single_file.stat.islnk
+          - multi_file.stat.islnk
+        fail_msg: "Not all files are symlinks (root={{ root_file.stat.islnk }}, single={{ single_file.stat.islnk }}, multi={{ multi_file.stat.islnk }})"
+        success_msg: "All files are properly symlinked"
+
+    - name: Verify directory structure is correct
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: dir_checks
+      loop:
+        - "{{ test_home }}/.bash"
+        - "{{ test_home }}/.config"
+        - "{{ test_home }}/.config/bash"
+        - "{{ test_home }}/.config/bash/rc.d"
+
+    - name: Assert all parent directories exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "Directory {{ item.item }} does not exist"
+        success_msg: "Directory {{ item.item }} exists"
+      loop: "{{ dir_checks.results }}"
+
+    - name: Verify content of root-level file
+      ansible.builtin.shell: grep -q "PS1=" "{{ test_home }}/.bashrc"
+      register: root_content
+      changed_when: false
+      failed_when: false
+
+    - name: Verify content of single-level file
+      ansible.builtin.shell: grep -q "alias ll=" "{{ test_home }}/.bash/aliases.sh"
+      register: single_content
+      changed_when: false
+      failed_when: false
+
+    - name: Verify content of multi-level file
+      ansible.builtin.shell: grep -q "EDITOR=vim" "{{ test_home }}/.config/bash/rc.d/env.sh"
+      register: multi_content
+      changed_when: false
+      failed_when: false
+
+    - name: Assert all files have expected content
+      ansible.builtin.assert:
+        that:
+          - root_content.rc == 0
+          - single_content.rc == 0
+          - multi_content.rc == 0
+        fail_msg: "Not all files contain expected content"
+        success_msg: "All files contain expected content"
+
+    - name: Display test results
+      ansible.builtin.debug:
+        msg: |
+          Mixed Nesting Test Results:
+          - Root-level .bashrc: {{ root_file.stat.exists }} (symlink: {{ root_file.stat.islnk }})
+          - Single-level .bash/aliases.sh: {{ single_file.stat.exists }} (symlink: {{ single_file.stat.islnk }})
+          - Multi-level .config/bash/rc.d/env.sh: {{ multi_file.stat.exists }} (symlink: {{ multi_file.stat.islnk }})
+          - All content checks passed: {{ root_content.rc == 0 and single_content.rc == 0 and multi_content.rc == 0 }}
+
+          ✅ MIXED NESTING LEVELS WORK CORRECTLY
+          A single module can declare root, single-level, and multi-level mergeable files!
+
+    - name: Clean up test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: absent
+      when: test_home != lookup('env', 'HOME')

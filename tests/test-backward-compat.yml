@@ -1,0 +1,113 @@
+---
+# Test playbook for TC-003: Backward Compatibility with Root-Level Files
+- name: Test Backward Compatibility - Root-Level and Nested Files Together
+  hosts: localhost
+  vars:
+    test_home: "{{ lookup('env', 'HOME') }}/.dotmodules-test-backward-compat"
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ test_home }}/.dotmodules"
+      install:
+        - shell-zsh              # Has root-level .zshrc
+        - test-nested-single-a   # Has nested .zsh/aliases.sh
+    home_dir: "{{ test_home }}"
+
+  pre_tasks:
+    - name: Create test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: directory
+
+  roles:
+    - ansible-role-dotmodules
+
+  post_tasks:
+    - name: Debug - List files in test home
+      ansible.builtin.shell: |
+        find {{ test_home }} -type f -o -type l -o -type d | head -30
+      register: test_home_files
+      changed_when: false
+
+    - name: Debug - Show test home files
+      ansible.builtin.debug:
+        var: test_home_files.stdout_lines
+
+    - name: Verify root-level .zshrc file exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.zshrc"
+      register: root_zshrc
+
+    - name: Assert root-level file exists and is a symlink
+      ansible.builtin.assert:
+        that:
+          - root_zshrc.stat.exists
+          - root_zshrc.stat.islnk
+        fail_msg: "Root-level .zshrc does not exist or is not a symlink"
+        success_msg: "Root-level .zshrc exists and is a symlink (backward compatible)"
+
+    - name: Verify nested .zsh/aliases.sh file exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.zsh/aliases.sh"
+      register: nested_aliases
+
+    - name: Assert nested file exists and is a symlink
+      ansible.builtin.assert:
+        that:
+          - nested_aliases.stat.exists
+          - nested_aliases.stat.islnk
+        fail_msg: "Nested .zsh/aliases.sh does not exist or is not a symlink"
+        success_msg: "Nested .zsh/aliases.sh exists and is a symlink"
+
+    - name: Read root-level merged file content
+      ansible.builtin.shell: |
+        cat "{{ test_home }}/.zshrc"
+      register: root_content
+      changed_when: false
+
+    - name: Verify root file contains shell-zsh module content
+      ansible.builtin.shell: |
+        grep -q "shell-zsh" "{{ test_home }}/.zshrc"
+      register: root_has_content
+      changed_when: false
+      failed_when: false
+
+    - name: Read nested merged file content
+      ansible.builtin.shell: |
+        cat "{{ test_home }}/.zsh/aliases.sh"
+      register: nested_content
+      changed_when: false
+
+    - name: Verify nested file contains test module content
+      ansible.builtin.shell: |
+        grep -q "test-nested-single-a" "{{ test_home }}/.zsh/aliases.sh"
+      register: nested_has_content
+      changed_when: false
+      failed_when: false
+
+    - name: Assert both files have correct content
+      ansible.builtin.assert:
+        that:
+          - root_has_content.rc == 0
+          - nested_has_content.rc == 0
+        fail_msg: "Files do not contain expected module content"
+        success_msg: "Both root-level and nested files contain correct merged content"
+
+    - name: Display test results
+      ansible.builtin.debug:
+        msg: |
+          Backward Compatibility Test Results:
+          - Root-level .zshrc exists: {{ root_zshrc.stat.exists }}
+          - Root-level .zshrc is symlink: {{ root_zshrc.stat.islnk }}
+          - Nested .zsh/aliases.sh exists: {{ nested_aliases.stat.exists }}
+          - Nested .zsh/aliases.sh is symlink: {{ nested_aliases.stat.islnk }}
+          - Root file has shell-zsh content: {{ root_has_content.rc == 0 }}
+          - Nested file has test module content: {{ nested_has_content.rc == 0 }}
+
+          ✅ BACKWARD COMPATIBILITY CONFIRMED
+          Root-level and nested mergeable files coexist without conflicts!
+
+    - name: Clean up test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: absent
+      when: test_home != lookup('env', 'HOME')

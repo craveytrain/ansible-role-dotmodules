@@ -1,0 +1,130 @@
+---
+# Test playbook for TC-002: Multi-Level Nested File Merge
+- name: Test Multi-Level Nested Mergeable Files
+  hosts: localhost
+  vars:
+    test_home: "{{ lookup('env', 'HOME') }}/.dotmodules-test-nested-multi"
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ test_home }}/.dotmodules"
+      install:
+        - test-nested-multi-a
+        - test-nested-multi-b
+    home_dir: "{{ test_home }}"
+
+  pre_tasks:
+    - name: Create test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: directory
+
+  roles:
+    - ansible-role-dotmodules
+
+  post_tasks:
+    - name: Debug - List files in test home
+      ansible.builtin.shell: |
+        find {{ test_home }} -type f -o -type l -o -type d | head -30
+      register: test_home_files
+      changed_when: false
+
+    - name: Debug - Show test home files
+      ansible.builtin.debug:
+        var: test_home_files.stdout_lines
+
+    - name: Verify .config directory exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config"
+      register: config_dir
+
+    - name: Verify .config/fish directory exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config/fish"
+      register: fish_dir
+
+    - name: Verify .config/fish/conf.d directory exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config/fish/conf.d"
+      register: confd_dir
+
+    - name: Assert nested directory structure exists
+      ansible.builtin.assert:
+        that:
+          - config_dir.stat.exists and config_dir.stat.isdir
+          - fish_dir.stat.exists and fish_dir.stat.isdir
+          - confd_dir.stat.exists and confd_dir.stat.isdir
+        fail_msg: "Nested directory structure (.config/fish/conf.d/) does not exist"
+        success_msg: "Nested directory structure exists"
+
+    - name: Verify merged custom.fish file exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.config/fish/conf.d/custom.fish"
+      register: merged_fish
+
+    - name: Assert merged file exists and is a symlink
+      ansible.builtin.assert:
+        that:
+          - merged_fish.stat.exists
+          - merged_fish.stat.islnk
+        fail_msg: "Merged custom.fish file does not exist or is not a symlink"
+        success_msg: "Merged custom.fish file exists and is a symlink"
+
+    - name: Read merged file content
+      ansible.builtin.shell: |
+        cat "{{ test_home }}/.config/fish/conf.d/custom.fish"
+      register: merged_content
+      changed_when: false
+
+    - name: Display merged content
+      ansible.builtin.debug:
+        var: merged_content.stdout_lines
+
+    - name: Verify content contains module A contributions
+      ansible.builtin.shell: |
+        grep -q "set -gx EDITOR" "{{ test_home }}/.config/fish/conf.d/custom.fish" && \
+        grep -q "set -gx PATH" "{{ test_home }}/.config/fish/conf.d/custom.fish"
+      register: module_a_content
+      changed_when: false
+      failed_when: false
+
+    - name: Verify content contains module B contributions
+      ansible.builtin.shell: |
+        grep -q "set -gx PAGER" "{{ test_home }}/.config/fish/conf.d/custom.fish" && \
+        grep -q "set -gx LANG" "{{ test_home }}/.config/fish/conf.d/custom.fish"
+      register: module_b_content
+      changed_when: false
+      failed_when: false
+
+    - name: Verify attribution headers exist
+      ansible.builtin.shell: |
+        grep -q "test-nested-multi-a" "{{ test_home }}/.config/fish/conf.d/custom.fish" && \
+        grep -q "test-nested-multi-b" "{{ test_home }}/.config/fish/conf.d/custom.fish"
+      register: attribution_headers
+      changed_when: false
+      failed_when: false
+
+    - name: Assert all content checks pass
+      ansible.builtin.assert:
+        that:
+          - module_a_content.rc == 0
+          - module_b_content.rc == 0
+          - attribution_headers.rc == 0
+        fail_msg: "Merged file does not contain expected content from both modules or attribution headers"
+        success_msg: "Merged file contains all expected content with attribution headers"
+
+    - name: Display test results
+      ansible.builtin.debug:
+        msg: |
+          Test Results:
+          - Nested directories exist: {{ config_dir.stat.exists and fish_dir.stat.exists and confd_dir.stat.exists }}
+          - Merged file exists: {{ merged_fish.stat.exists }}
+          - File is symlink: {{ merged_fish.stat.islnk }}
+          - Contains module A content: {{ module_a_content.rc == 0 }}
+          - Contains module B content: {{ module_b_content.rc == 0 }}
+          - Contains attribution headers: {{ attribution_headers.rc == 0 }}
+
+    - name: Clean up test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: absent
+      when: test_home != lookup('env', 'HOME')

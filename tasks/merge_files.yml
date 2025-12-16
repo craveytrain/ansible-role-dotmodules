@@ -16,6 +16,13 @@
     path: "{{ dotmodules.dest }}/merged"
     state: directory
 
+- name: Create parent directories for nested mergeable files
+  ansible.builtin.file:
+    path: "{{ dotmodules.dest }}/merged/{{ item | dirname }}"
+    state: directory
+  when: item | dirname != ''
+  loop: "{{ unique_mergeable_files }}"
+
 - name: Merge files from all contributing modules
   ansible.builtin.template:
     src: "merged_file.j2"
@@ -28,7 +35,7 @@
 
 - name: Unstow merged files if already stowed
   ansible.builtin.command: >-
-    stow -D -d "{{ dotmodules.dest }}/merged" -t "{{ home_dir }}" .
+    stow --no-folding -D -d "{{ dotmodules.dest }}/merged" -t "{{ home_dir }}" .
   when: unique_mergeable_files | length > 0
   ignore_errors: yes
 
@@ -52,6 +59,6 @@
 
 - name: Deploy merged files using stow
   ansible.builtin.command: >-
-    stow -d "{{ dotmodules.dest }}/merged" -t "{{ home_dir }}" .
+    stow --no-folding -d "{{ dotmodules.dest }}/merged" -t "{{ home_dir }}" .
   when: unique_mergeable_files | length > 0
   register: merged_stow_result

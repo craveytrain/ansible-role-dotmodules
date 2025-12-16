@@ -1,0 +1,119 @@
+---
+# Test playbook for TC-001: Single-Level Nested File Merge
+- name: Test Single-Level Nested Mergeable Files
+  hosts: localhost
+  vars:
+    test_home: "{{ lookup('env', 'HOME') }}/.dotmodules-test-nested-single"
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ test_home }}/.dotmodules"
+      install:
+        - test-nested-single-a
+        - test-nested-single-b
+    home_dir: "{{ test_home }}"
+
+  pre_tasks:
+    - name: Create test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: directory
+
+  roles:
+    - ansible-role-dotmodules
+
+  post_tasks:
+    - name: Debug - List files in test home
+      ansible.builtin.shell: |
+        find {{ test_home }} -type f -o -type l | head -20
+      register: test_home_files
+      changed_when: false
+
+    - name: Debug - Show test home files
+      ansible.builtin.debug:
+        var: test_home_files.stdout_lines
+
+    - name: Verify .zsh directory exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.zsh"
+      register: zsh_dir
+
+    - name: Assert .zsh directory exists
+      ansible.builtin.assert:
+        that:
+          - zsh_dir.stat.exists
+          - zsh_dir.stat.isdir or zsh_dir.stat.islnk
+        fail_msg: ".zsh directory does not exist (exists={{ zsh_dir.stat.exists }}, isdir={{ zsh_dir.stat.isdir }}, islnk={{ zsh_dir.stat.islnk }})"
+        success_msg: ".zsh directory exists"
+
+    - name: Verify merged .zsh/aliases.sh file exists
+      ansible.builtin.stat:
+        path: "{{ test_home }}/.zsh/aliases.sh"
+      register: merged_aliases
+
+    - name: Assert merged file exists and is a symlink
+      ansible.builtin.assert:
+        that:
+          - merged_aliases.stat.exists
+          - merged_aliases.stat.islnk
+        fail_msg: "Merged .zsh/aliases.sh file does not exist or is not a symlink"
+        success_msg: "Merged .zsh/aliases.sh file exists and is a symlink"
+
+    - name: Read merged file content
+      ansible.builtin.shell: |
+        cat "{{ test_home }}/.zsh/aliases.sh"
+      register: merged_content
+      changed_when: false
+
+    - name: Display merged content
+      ansible.builtin.debug:
+        var: merged_content.stdout_lines
+
+    - name: Verify content contains module A contributions
+      ansible.builtin.shell: |
+        grep -q "alias ll=" "{{ test_home }}/.zsh/aliases.sh" && \
+        grep -q "alias gst=" "{{ test_home }}/.zsh/aliases.sh"
+      register: module_a_content
+      changed_when: false
+      failed_when: false
+
+    - name: Verify content contains module B contributions
+      ansible.builtin.shell: |
+        grep -q "alias gco=" "{{ test_home }}/.zsh/aliases.sh" && \
+        grep -q "alias gp=" "{{ test_home }}/.zsh/aliases.sh"
+      register: module_b_content
+      changed_when: false
+      failed_when: false
+
+    - name: Verify attribution headers exist
+      ansible.builtin.shell: |
+        grep -q "test-nested-single-a" "{{ test_home }}/.zsh/aliases.sh" && \
+        grep -q "test-nested-single-b" "{{ test_home }}/.zsh/aliases.sh"
+      register: attribution_headers
+      changed_when: false
+      failed_when: false
+
+    - name: Assert all content checks pass
+      ansible.builtin.assert:
+        that:
+          - module_a_content.rc == 0
+          - module_b_content.rc == 0
+          - attribution_headers.rc == 0
+        fail_msg: "Merged file does not contain expected content from both modules or attribution headers"
+        success_msg: "Merged file contains all expected content with attribution headers"
+
+    - name: Display test results
+      ansible.builtin.debug:
+        msg: |
+          Test Results:
+          - .zsh directory exists: {{ zsh_dir.stat.exists }}
+          - Merged file exists: {{ merged_aliases.stat.exists }}
+          - File is symlink: {{ merged_aliases.stat.islnk }}
+          - Contains module A content: {{ module_a_content.rc == 0 }}
+          - Contains module B content: {{ module_b_content.rc == 0 }}
+          - Contains attribution headers: {{ attribution_headers.rc == 0 }}
+
+    - name: Clean up test home directory
+      ansible.builtin.file:
+        path: "{{ test_home }}"
+        state: absent
+      when: test_home != lookup('env', 'HOME')
