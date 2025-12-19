@@ -1,0 +1,14 @@
+---
+# Test fixture for shell registration feature
+# Module that declares fish shell registration
+
+homebrew_packages:
+  - fish
+
+register_shell: fish
+
+mergeable_files:
+  - ".config/fish/config.fish"
+
+stow_dirs:
+  - module-with-fish

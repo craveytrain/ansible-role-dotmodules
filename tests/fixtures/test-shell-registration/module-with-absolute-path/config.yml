@@ -1,0 +1,11 @@
+---
+# Test fixture for shell registration feature
+# Module that declares shell registration using absolute path (bypasses architecture detection)
+
+homebrew_packages:
+  - fish
+
+register_shell: /opt/homebrew/bin/fish
+
+stow_dirs:
+  - module-with-absolute-path

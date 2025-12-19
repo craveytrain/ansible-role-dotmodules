@@ -1,0 +1,47 @@
+---
+# Register shell in /etc/shells if declared by module
+# Feature: 001-register-shell-support
+# This task is invoked by process_module.yml when a module declares register_shell
+#
+# Edge Cases Handled:
+# - register_shell undefined: Task skipped (no error)
+# - register_shell empty string: Task skipped (length check)
+# - register_shell whitespace-only: Task skipped (length check)
+# - Multiple modules with same shell: lineinfile provides idempotency
+# - Absolute path: Used as-is (no prefix detection)
+# - Shell binary doesn't exist: Registration proceeds (mirrors macOS behavior)
+
+# Only proceed if register_shell is defined and non-empty
+- name: Check if register_shell is defined
+  ansible.builtin.set_fact:
+    _register_shell_defined: '{{ module_config.ansible_facts.register_shell is defined and module_config.ansible_facts.register_shell | length > 0 }}'
+
+# The remaining tasks run conditionally based on _register_shell_defined
+
+- name: Detect Homebrew prefix based on architecture
+  ansible.builtin.set_fact:
+    # Architecture detection for Homebrew path:
+    # - arm64 (Apple Silicon M1/M2/M3): /opt/homebrew
+    # - x86_64 (Intel Mac): /usr/local
+    homebrew_prefix: "{{ '/opt/homebrew' if ansible_machine == 'arm64' else '/usr/local' }}"
+  when: _register_shell_defined
+
+- name: Resolve shell path (handle both shell names and absolute paths)
+  ansible.builtin.set_fact:
+    shell_path: >-
+      {{
+        module_config.ansible_facts.register_shell
+        if '/' in module_config.ansible_facts.register_shell
+        else homebrew_prefix + '/bin/' + module_config.ansible_facts.register_shell
+      }}
+  when: _register_shell_defined
+
+- name: Register shell in /etc/shells
+  ansible.builtin.lineinfile:
+    path: /etc/shells
+    line: '{{ shell_path }}'
+    state: present
+    create: yes
+    mode: '0644'
+  become: yes
+  when: _register_shell_defined

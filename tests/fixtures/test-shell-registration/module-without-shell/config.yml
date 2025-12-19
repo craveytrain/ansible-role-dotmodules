@@ -1,0 +1,10 @@
+---
+# Test fixture for shell registration feature
+# Module that does NOT declare shell registration (register_shell field intentionally omitted)
+
+homebrew_packages:
+  - git
+  - gh
+
+stow_dirs:
+  - module-without-shell

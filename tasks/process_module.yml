@@ -1,12 +1,12 @@
 ---
 - name: Check if config.yml exists for {{ module_name }}
   ansible.builtin.stat:
-    path: "{{ dotmodules.dest }}/{{ module_name }}/config.yml"
+    path: '{{ dotmodules.dest }}/{{ module_name }}/config.yml'
   register: config_file_stat
 
 - name: Load configuration for {{ module_name }}
   ansible.builtin.include_vars:
-    file: "{{ dotmodules.dest }}/{{ module_name }}/config.yml"
+    file: '{{ dotmodules.dest }}/{{ module_name }}/config.yml'
   register: module_config
   when: config_file_stat.stat.exists
 
@@ -20,7 +20,12 @@
 - name: Collect configuration for {{ module_name }}
   ansible.builtin.set_fact:
     collected_configs: >-
-        {{
-          collected_configs | default({})
-          | combine({ module_name: module_config.ansible_facts }, recursive=True)
-        }}
+      {{
+        collected_configs | default({})
+        | combine({ module_name: module_config.ansible_facts }, recursive=True)
+      }}
+
+# Register shell if declared by module (Feature: 001-register-shell-support)
+- name: Register shell if declared by {{ module_name }}
+  ansible.builtin.include_tasks: register_shell.yml
+  when: module_config.ansible_facts.register_shell is defined
