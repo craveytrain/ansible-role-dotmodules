@@ -1,0 +1,4 @@
+# Test git configuration
+# This is a test fixture - module without shell registration
+[user]
+    name = Test User

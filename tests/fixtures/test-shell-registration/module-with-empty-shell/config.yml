@@ -1,0 +1,11 @@
+---
+# Test fixture for shell registration feature
+# Module with empty register_shell field (should be skipped)
+
+homebrew_packages:
+  - tmux
+
+register_shell: ""
+
+stow_dirs:
+  - module-with-empty-shell

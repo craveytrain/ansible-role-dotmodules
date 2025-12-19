@@ -1,0 +1,14 @@
+---
+# Test fixture for shell registration feature
+# Module that declares zsh shell registration
+
+homebrew_packages:
+  - zsh
+
+register_shell: zsh
+
+mergeable_files:
+  - ".zshrc"
+
+stow_dirs:
+  - module-with-zsh

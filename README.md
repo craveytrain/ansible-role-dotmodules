@@ -7,6 +7,7 @@ A modular Ansible role for managing dotfiles and macOS configuration. This role 
 - **Modular Dotfile Management**: Organize dotfiles into logical modules (shell, git, dev-tools, etc.)
 - **GNU Stow Integration**: Leverages GNU Stow for clean symlink-based dotfile deployment
 - **File Merging Support**: Intelligent merging of shared configuration files (e.g., `.zshrc`, `.bashrc`)
+- **Shell Registration**: Automatic registration of shells in `/etc/shells` (module-level declaration)
 - **Conflict Resolution**: Automatic detection and resolution of file strategy conflicts
 - **Homebrew Integration**: Seamless package management via `community.general` modules
 - **Mac App Store Integration**: App installation via `geerlingguy.mac.mas`
@@ -103,6 +104,7 @@ Each module can specify the following variables in its `config.yml`:
 - **`mas_installed_apps`**: List of Mac App Store apps to install
 - **`stow_dirs`**: List of directories to deploy via GNU Stow
 - **`mergeable_files`**: List of files to merge with other modules
+- **`register_shell`**: Optional shell to register in `/etc/shells` (shell name or absolute path)
 
 ### Example Module Configuration
 
@@ -112,6 +114,8 @@ homebrew_packages:
   - zsh
   - starship
   - fzf
+
+register_shell: zsh             # Registers /opt/homebrew/bin/zsh or /usr/local/bin/zsh
 
 mergeable_files:
   - ".zshrc"                    # Root-level file
@@ -178,6 +182,36 @@ dotfiles/
 │           └── .gitconfig
 ```
 
+## Shell Registration
+
+Modules can declare shells that should be automatically registered in `/etc/shells`:
+
+```yaml
+# modules/shell-fish/config.yml
+homebrew_packages:
+  - fish
+
+register_shell: fish  # Auto-detects Homebrew path based on architecture
+```
+
+**Architecture Detection:**
+- **Apple Silicon (M1/M2/M3)**: `/opt/homebrew/bin/fish`
+- **Intel Mac**: `/usr/local/bin/fish`
+
+**Absolute Paths:** You can also specify an absolute path:
+```yaml
+register_shell: /custom/path/to/shell
+```
+
+**Edge Cases:**
+- Missing `register_shell` field: Shell registration skipped (no error)
+- Empty `register_shell` value: Shell registration skipped (no error)
+- Multiple modules with same shell: Idempotent (no duplicates)
+- Shell binary doesn't exist: Registration proceeds anyway (mirrors macOS behavior)
+- Missing sudo privileges: Task fails with clear error message
+
+**Idempotency:** Running the role multiple times will not create duplicate entries in `/etc/shells`.
+
 ## Testing
 
 The role includes comprehensive tests:
@@ -191,4 +225,7 @@ ansible-playbook tests/test-conflict.yml
 
 # Test with dependencies
 ansible-playbook tests/test-with-deps.yml
+
+# Test shell registration
+ansible-playbook tests/test-shell-registration.yml
 ```
