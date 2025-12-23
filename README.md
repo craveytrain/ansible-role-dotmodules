@@ -7,7 +7,7 @@ A modular Ansible role for managing dotfiles and macOS configuration. This role 
 - **Modular Dotfile Management**: Organize dotfiles into logical modules (shell, git, dev-tools, etc.)
 - **GNU Stow Integration**: Leverages GNU Stow for clean symlink-based dotfile deployment
 - **File Merging Support**: Intelligent merging of shared configuration files (e.g., `.zshrc`, `.bashrc`)
-- **Shell Registration**: Automatic registration of shells in `/etc/shells` (module-level declaration)
+- **Optional Shell Registration**: Automatic registration of shells in `/etc/shells` with configurable skip option for restricted systems
 - **Conflict Resolution**: Automatic detection and resolution of file strategy conflicts
 - **Homebrew Integration**: Seamless package management via `community.general` modules
 - **Mac App Store Integration**: App installation via `geerlingguy.mac.mas`
@@ -70,6 +70,162 @@ mergeable_files:
             └── custom.fish             # Merged deeply nested file
 ```
 
+## Optional Shell Registration
+
+Modules can declare a shell to be automatically registered in `/etc/shells` using the `register_shell` configuration option. This feature supports optional skipping for systems with restrictive policies.
+
+### Default Behavior
+
+By default, when a module declares `register_shell`, the shell is automatically registered in `/etc/shells`:
+
+```yaml
+# modules/fish/config.yml
+homebrew_packages:
+  - fish
+
+register_shell: fish  # Automatically registers /opt/homebrew/bin/fish or /usr/local/bin/fish
+```
+
+### Skipping Shell Registration
+
+On corporate or restricted systems where `/etc/shells` modification is blocked by security policies, you can skip shell registration while still deploying all shell configuration files:
+
+```yaml
+# modules/fish/config.yml
+homebrew_packages:
+  - fish
+
+register_shell: fish
+skip_shell_registration: true  # Skip registration, but still deploy configs
+```
+
+**When to use `skip_shell_registration: true`**:
+- Corporate workstations with system policies preventing `/etc/shells` modification
+- CI/CD environments where shell registration isn't needed
+- Restricted systems where sudo privileges are limited
+- Systems where you prefer to manage shell registration manually
+
+### Error Handling
+
+If shell registration fails (e.g., insufficient privileges), the deployment will fail with a helpful error message:
+
+```
+Failed to register /opt/homebrew/bin/fish in /etc/shells.
+
+This is usually caused by:
+- Insufficient sudo privileges
+- System policies preventing /etc/shells modification
+
+To skip shell registration, add to your module's config.yml:
+skip_shell_registration: true
+```
+
+### Architecture Support
+
+Shell path resolution automatically detects the system architecture:
+- **Apple Silicon (M1/M2/M3)**: `/opt/homebrew/bin/{shell}`
+- **Intel Mac**: `/usr/local/bin/{shell}`
+
+Absolute paths (e.g., `/bin/bash`) are used as-is without modification.
+
+### Use Cases
+
+**Personal Workstation** (default):
+```yaml
+register_shell: fish
+# skip_shell_registration defaults to false - registration enabled
+```
+
+**Corporate Workstation** (restricted):
+```yaml
+register_shell: fish
+skip_shell_registration: true  # Skip due to policy restrictions
+```
+
+**No Shell Registration Needed**:
+```yaml
+# Simply omit register_shell - no registration tasks will run
+homebrew_packages:
+  - fish
+```
+
+### Runtime Control
+
+Skip shell registration for a single deployment run without modifying configuration files using Ansible tags:
+
+```bash
+ansible-playbook deploy.yml --skip-tags register_shell
+```
+
+This is useful for:
+- **CI/CD pipelines**: No sudo access available
+- **Testing deployments**: Don't want to modify system files
+- **Restricted corporate environments**: Temporary deployments without permanent shell registration
+- **Ad-hoc deployments**: Quick deployments where shell registration isn't needed
+
+**Runtime skip vs Config skip**:
+
+| Control Method | Persistence | Use Case |
+|----------------|-------------|----------|
+| `--skip-tags register_shell` | Single playbook run | Ad-hoc skip for CI/CD, testing |
+| `skip_shell_registration: true` | Permanent (in config.yml) | System policy, permanent skip |
+
+Both mechanisms work independently:
+- **Runtime skip** (`--skip-tags`) takes precedence - prevents task execution at Ansible engine level
+- **Config skip** (`skip_shell_registration: true`) applies when tasks are allowed to execute
+
+**Example: CI/CD Deployment**
+
+```yaml
+# .github/workflows/test.yml
+- name: Deploy dotfiles (skip shell registration)
+  run: ansible-playbook deploy.yml --skip-tags register_shell
+  # No sudo required when using --skip-tags register_shell
+```
+
+**Checking available tags**:
+
+```bash
+# See which tags are available
+ansible-playbook deploy.yml --list-tags
+
+# Dry run to see what would be skipped
+ansible-playbook deploy.yml --skip-tags register_shell --check
+```
+
+### Troubleshooting Shell Registration
+
+**Problem: Shell not registered when expected**
+
+Possible causes:
+- You used `--skip-tags register_shell` (check your command)
+- Module config has `skip_shell_registration: true` (check config.yml)
+- Module doesn't have `register_shell` field (check config.yml)
+
+Solution:
+```bash
+# Verify command doesn't have --skip-tags
+ansible-playbook deploy.yml
+
+# Check module config
+cat ~/.dotmodules/<module-name>/config.yml | grep -E '(register_shell|skip_shell_registration)'
+```
+
+**Problem: Sudo prompt still appears with --skip-tags**
+
+Possible causes:
+- Typo in tag name (must be exactly `register_shell`, case-sensitive)
+- Other tasks require sudo (not shell registration)
+
+Solution:
+```bash
+# Verify exact tag name
+ansible-playbook deploy.yml --skip-tags register_shell
+
+# Check which tasks require sudo
+ansible-playbook deploy.yml --list-tasks -vv | grep become
+```
+
 ## Requirements
 
 - **Operating System:** macOS
@@ -105,6 +261,7 @@ Each module can specify the following variables in its `config.yml`:
 - **`stow_dirs`**: List of directories to deploy via GNU Stow
 - **`mergeable_files`**: List of files to merge with other modules
 - **`register_shell`**: Optional shell to register in `/etc/shells` (shell name or absolute path)
+- **`skip_shell_registration`**: Optional boolean to skip shell registration (default: `false`). Set to `true` on systems with restrictive policies that prevent `/etc/shells` modification
 
 ### Example Module Configuration
 

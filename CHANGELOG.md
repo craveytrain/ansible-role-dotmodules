@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optional field - modules without shell registration continue to work unchanged
   - Comprehensive edge case handling (empty values, missing fields, multiple modules with same shell)
   - Integration tests covering all user scenarios
+- **Optional Shell Registration Skip**: Shell registration can now be skipped on restricted systems via the `skip_shell_registration` configuration option
+  - Default behavior unchanged (registration enabled) - maintains 100% backward compatibility
+  - Set `skip_shell_registration: true` in module config to bypass `/etc/shells` modification
+  - All shell configuration files still deployed when registration is skipped
+  - Helpful error messages guide users to skip option when registration fails
+  - Supports corporate/restricted environments with system policies preventing `/etc/shells` changes
+  - Independent per-module control (fish can skip while zsh registers, or vice versa)
+- **Runtime Shell Registration Control**: Shell registration can now be skipped at runtime using Ansible tags
+  - Use `ansible-playbook deploy.yml --skip-tags register_shell` to skip shell registration for a single deployment
+  - No configuration file changes required - skip is controlled via command-line flag
+  - Ideal for CI/CD pipelines, testing environments, and restricted systems without sudo access
+  - Runtime skip takes precedence over config-based skip (prevents task execution at Ansible engine level)
+  - 100% backward compatible - playbooks without `--skip-tags` flag behave identically to before
+  - Works independently with config-based skip - both mechanisms can coexist
 - **Nested Directory Support for Mergeable Files**: The `mergeable_files` configuration now supports nested directory paths (e.g., `.zsh/aliases.sh`, `.config/fish/conf.d/custom.fish`), enabling better organization of configuration files.
   - Parent directories are automatically created for nested mergeable files
   - Both single-level (`.zsh/file.sh`) and multi-level (`.config/a/b/c/file.sh`) nesting are supported
