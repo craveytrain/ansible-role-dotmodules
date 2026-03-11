@@ -3,9 +3,9 @@
   set_fact:
     dotmodules_repo_local: "{{ dotmodules.repo is match('^(file://|/).*') }}"
 
-- name: Remove file:// prefix if present
+- name: Set dotmodules_path for local repo (use source directly, no symlink)
   set_fact:
-    dotmodules_repo_path: "{{ dotmodules.repo | regex_replace('^file://', '') }}"
+    dotmodules_path: "{{ dotmodules.repo | regex_replace('^file://', '') }}"
   when: dotmodules_repo_local
 
 - name: Clone or update dotmodules repository (remote)
@@ -16,12 +16,10 @@
     force: yes
   when: not dotmodules_repo_local
 
-- name: Link dotmodules folder (for testing)
-  ansible.builtin.file:
-    src: "{{ dotmodules_repo_path }}"
-    dest: "{{ dotmodules.dest }}"
-    state: link
-  when: dotmodules_repo_local
+- name: Set dotmodules_path for remote repo
+  set_fact:
+    dotmodules_path: "{{ dotmodules.dest }}"
+  when: not dotmodules_repo_local
 
 # Initialize aggregated configurations
 - name: Initialize aggregated module configurations
@@ -89,7 +87,7 @@
 # Run Stow once for all modules
 - name: Deploy all dotfiles using stow
   ansible.builtin.command: >-
-    stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ lookup('env', 'HOME') }}" files
+    stow -d "{{ dotmodules_path }}/{{ item }}" -t "{{ lookup('env', 'HOME') }}" files
   loop: "{{ stow_dirs }}"
   when: stow_dirs | length > 0
 
