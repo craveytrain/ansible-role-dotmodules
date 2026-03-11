@@ -7,8 +7,5 @@ homebrew_packages:
 
 register_shell: zsh
 
-mergeable_files:
-  - ".zshrc"
-
 stow_dirs:
   - module-with-zsh

@@ -1,74 +1,21 @@
 # ansible-role-dotmodules
 
-A modular Ansible role for managing dotfiles and macOS configuration. This role provides a flexible system for organizing dotfiles into modules, with support for both traditional GNU Stow deployment and intelligent file merging for shared configuration files.
+A modular Ansible role for managing dotfiles and macOS configuration. This role provides a flexible system for organizing dotfiles into modules, deploying them via GNU Stow with `--no-folding` for clean symlink management.
 
 ## Features
 
 - **Modular Dotfile Management**: Organize dotfiles into logical modules (shell, git, dev-tools, etc.)
-- **GNU Stow Integration**: Leverages GNU Stow for clean symlink-based dotfile deployment
-- **File Merging Support**: Intelligent merging of shared configuration files (e.g., `.zshrc`, `.bashrc`)
+- **GNU Stow Integration**: Leverages GNU Stow with `--no-folding` for individual file symlinks
 - **Optional Shell Registration**: Automatic registration of shells in `/etc/shells` with runtime skip support via Ansible tags
-- **Conflict Resolution**: Automatic detection and resolution of file strategy conflicts
 - **Homebrew Integration**: Seamless package management via `community.general` modules
 - **Mac App Store Integration**: App installation via `geerlingguy.mac.mas`
 - **Ansible Best Practices**: Follows Ansible conventions and uses recommended modules
 
-## File Merging Strategy
+## How It Works
 
-When multiple modules need to contribute to the same file (e.g., `.zshrc`), the role uses an intelligent merging strategy:
+Each module contains a `config.yml` declaring its packages and a `files/` directory with dotfiles to deploy. The role processes all modules, aggregates their package lists, and deploys files via GNU Stow with `--no-folding` so each file gets its own symlink.
 
-```yaml
-# Module A (shell-zsh/config.yml)
-mergeable_files:
-  - ".zshrc"
-
-# Module B (dev-tools-zsh/config.yml)  
-mergeable_files:
-  - ".zshrc"
-```
-
-**Result**: A merged `.zshrc` file with clear attribution:
-```bash
-# =============================================================================
-# SHELL-ZSH MODULE CONTRIBUTION
-# =============================================================================
-eval "$(starship init zsh)"
-setopt AUTO_CD
-
-# =============================================================================
-# DEV-TOOLS-ZSH MODULE CONTRIBUTION
-# =============================================================================
-source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-alias grep='grep --color=auto'
-```
-
-**Conflict Resolution**: The role automatically detects conflicts between merge and stow strategies, providing clear error messages with resolution options.
-
-### Nested Directory Support
-
-The role now supports mergeable files in nested directories, enabling better organization of configuration files:
-
-```yaml
-# Module configuration with nested paths
-mergeable_files:
-  - ".zshrc"                              # Root-level (as before)
-  - ".zsh/aliases.sh"                     # Single-level nesting (NEW)
-  - ".config/fish/conf.d/custom.fish"     # Multi-level nesting (NEW)
-```
-
-**Directory Structure**: Parent directories are automatically created, and files are symlinked individually using GNU Stow's `--no-folding` option, allowing merged and stowed files to coexist in the same directory.
-
-**Example**:
-```
-~/
-├── .zshrc                              # Merged root-level file
-├── .zsh/
-│   └── aliases.sh                      # Merged nested file
-└── .config/
-    └── fish/
-        └── conf.d/
-            └── custom.fish             # Merged deeply nested file
-```
+When multiple modules need to contribute to the same config file (e.g., `.zshrc`), use the **conf.d pattern**: each module drops a numbered fragment into a directory like `.zsh/conf.d/`, and a loader sources them in order.
 
 ## Optional Shell Registration
 
@@ -103,22 +50,6 @@ For runtime control (e.g., CI/CD, testing), use Ansible tags:
 ansible-playbook deploy.yml --skip-tags register_shell
 ```
 
-### Error Handling
-
-If shell registration fails (e.g., insufficient privileges), the deployment will fail with a helpful error message:
-
-```
-Failed to register /opt/homebrew/bin/fish in /etc/shells.
-
-This is usually caused by:
-- Insufficient sudo privileges
-- System policies preventing /etc/shells modification
-
-To skip shell registration:
-- Remove 'register_shell' from your module's config.yml, or
-- Run with --skip-tags register_shell
-```
-
 ### Architecture Support
 
 Shell path resolution automatically detects the system architecture:
@@ -126,27 +57,6 @@ Shell path resolution automatically detects the system architecture:
 - **Intel Mac**: `/usr/local/bin/{shell}`
 
 Absolute paths (e.g., `/bin/bash`) are used as-is without modification.
-
-### Use Cases
-
-**Enable shell registration** (default):
-```yaml
-homebrew_packages:
-  - fish
-register_shell: fish  # Enables registration
-```
-
-**Skip shell registration permanently**:
-```yaml
-homebrew_packages:
-  - fish
-# Omit register_shell field - no registration tasks will run
-```
-
-**Skip shell registration at runtime** (CI/CD, testing):
-```bash
-ansible-playbook deploy.yml --skip-tags register_shell
-```
 
 ### Runtime Control
 
@@ -160,57 +70,6 @@ This is useful for:
 - **CI/CD pipelines**: No sudo access available
 - **Testing deployments**: Don't want to modify system files
 - **Ad-hoc deployments**: Quick deployments where shell registration isn't needed
-
-**Example: CI/CD Deployment**
-
-```yaml
-# .github/workflows/test.yml
-- name: Deploy dotfiles (skip shell registration)
-  run: ansible-playbook deploy.yml --skip-tags register_shell
-  # No sudo required when using --skip-tags register_shell
-```
-
-**Checking available tags**:
-
-```bash
-# See which tags are available
-ansible-playbook deploy.yml --list-tags
-
-# Dry run to see what would be skipped
-ansible-playbook deploy.yml --skip-tags register_shell --check
-```
-
-### Troubleshooting Shell Registration
-
-**Problem: Shell not registered when expected**
-
-Possible causes:
-- You used `--skip-tags register_shell` (check your command)
-- Module doesn't have `register_shell` field (check config.yml)
-
-Solution:
-```bash
-# Verify command doesn't have --skip-tags
-ansible-playbook deploy.yml
-
-# Check module config
-cat ~/.dotmodules/<module-name>/config.yml | grep register_shell
-```
-
-**Problem: Sudo prompt still appears with --skip-tags**
-
-Possible causes:
-- Typo in tag name (must be exactly `register_shell`, case-sensitive)
-- Other tasks require sudo (not shell registration)
-
-Solution:
-```bash
-# Verify exact tag name
-ansible-playbook deploy.yml --skip-tags register_shell
-
-# Check which tasks require sudo
-ansible-playbook deploy.yml --list-tasks -vv | grep become
-```
 
 ## Requirements
 
@@ -245,27 +104,21 @@ Each module can specify the following variables in its `config.yml`:
 - **`homebrew_taps`**: List of Homebrew taps to add
 - **`mas_installed_apps`**: List of Mac App Store apps to install
 - **`stow_dirs`**: List of directories to deploy via GNU Stow
-- **`mergeable_files`**: List of files to merge with other modules
 - **`register_shell`**: Optional shell to register in `/etc/shells` (shell name or absolute path)
 
 ### Example Module Configuration
 
 ```yaml
-# modules/shell-zsh/config.yml
+# modules/shell/config.yml
 homebrew_packages:
   - zsh
   - starship
   - fzf
 
-register_shell: zsh             # Registers /opt/homebrew/bin/zsh or /usr/local/bin/zsh
-
-mergeable_files:
-  - ".zshrc"                    # Root-level file
-  - ".zsh/aliases.sh"           # Nested file
-  - ".bashrc"
+register_shell: zsh
 
 stow_dirs:
-  - shell-zsh
+  - shell
 ```
 
 ---
@@ -295,10 +148,10 @@ Below is an example playbook that demonstrates how to use this role:
       repo: "https://github.com/your-org/dotfiles.git"
       dest: "{{ ansible_env.HOME }}/.dotmodules"
       install:
-        - shell-zsh      # Shell configuration with merging
-        - dev-tools-zsh  # Development tools with merging
-        - git           # Git configuration (stow only)
-        - editor        # Editor configuration (stow only)
+        - shell
+        - git
+        - dev-tools
+        - editor
   roles:
     - ansible-role-dotmodules
 ```
@@ -310,60 +163,33 @@ Create modules in your dotfiles repository with the following structure:
 ```
 dotfiles/
 ├── modules/
-│   ├── shell-zsh/
+│   ├── shell/
 │   │   ├── config.yml
 │   │   └── files/
-│   │       └── .zshrc
-│   ├── dev-tools-zsh/
+│   │       ├── .zsh/
+│   │       │   └── conf.d/
+│   │       │       ├── 00-shell-options.zsh
+│   │       │       └── 50-prompt.zsh
+│   │       └── .zshrc          # Sources conf.d fragments
+│   ├── dev-tools/
 │   │   ├── config.yml
 │   │   └── files/
-│   │       └── .zshrc
+│   │       └── .zsh/
+│   │           └── conf.d/
+│   │               └── 50-dev-aliases.zsh
 │   └── git/
 │       ├── config.yml
 │       └── files/
 │           └── .gitconfig
 ```
 
-## Shell Registration
-
-Modules can declare shells that should be automatically registered in `/etc/shells`:
-
-```yaml
-# modules/shell-fish/config.yml
-homebrew_packages:
-  - fish
-
-register_shell: fish  # Auto-detects Homebrew path based on architecture
-```
-
-**Architecture Detection:**
-- **Apple Silicon (M1/M2/M3)**: `/opt/homebrew/bin/fish`
-- **Intel Mac**: `/usr/local/bin/fish`
-
-**Absolute Paths:** You can also specify an absolute path:
-```yaml
-register_shell: /custom/path/to/shell
-```
-
-**Edge Cases:**
-- Missing `register_shell` field: Shell registration skipped (no error)
-- Empty `register_shell` value: Shell registration skipped (no error)
-- Multiple modules with same shell: Idempotent (no duplicates)
-- Shell binary doesn't exist: Registration proceeds anyway (mirrors macOS behavior)
-- Missing sudo privileges: Task fails with clear error message
-
-**Idempotency:** Running the role multiple times will not create duplicate entries in `/etc/shells`.
-
 ## Testing
 
-The role includes comprehensive tests:
+The role includes tests for core functionality:
 
 ```bash
-# Test file merging functionality
-ansible-playbook tests/test-merge.yml
-
-# Test conflict detection
-ansible-playbook tests/test-conflict.yml
+# Test basic module deployment
+ansible-playbook tests/test.yml
 
 # Test with dependencies
 ansible-playbook tests/test-with-deps.yml

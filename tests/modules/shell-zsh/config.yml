@@ -1,4 +1,0 @@
----
-# Shell zsh module with mergeable .zshrc
-mergeable_files:
-  - ".zshrc"
