@@ -94,17 +94,7 @@
   ansible.builtin.set_fact:
     stow_dirs: "{{ stow_dirs | default(dotmodules.install | default([])) }}"
 
-# Resolve file strategy conflicts first
-- name: Resolve file strategy conflicts
-  ansible.builtin.include_tasks: conflict_resolution.yml
-  when: dotmodules.install | length > 0
-
-# Handle mergeable files
-- name: Process mergeable files
-  ansible.builtin.include_tasks: merge_files.yml
-  when: dotmodules.install | length > 0
-
-# Run Stow once for all modules (excluding mergeable files)
+# Run Stow once for all modules
 - name: Deploy all dotfiles using stow
   ansible.builtin.include_tasks: stow_module.yml
   loop: "{{ stow_dirs }}"
