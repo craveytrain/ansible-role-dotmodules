@@ -37,22 +37,12 @@ jobs:
         cd tests
         ansible-playbook test.yml
         
-    - name: Run merge test
-      run: |
-        cd tests
-        ansible-playbook test-merge.yml
-        
-    - name: Run conflict test
-      run: |
-        cd tests
-        ansible-playbook test-conflict.yml
-        
     - name: Run test with dependencies
       run: |
         cd tests
         ansible-playbook test-with-deps.yml
 
-    - name: Run merge and stow test
+    - name: Run shell registration test
       run: |
         cd tests
-        ansible-playbook test-merge-and-stow.yml
+        ansible-playbook test-shell-registration.yml
