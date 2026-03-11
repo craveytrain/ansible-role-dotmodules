@@ -24,7 +24,7 @@
     # Architecture detection for Homebrew path:
     # - arm64 (Apple Silicon M1/M2/M3): /opt/homebrew
     # - x86_64 (Intel Mac): /usr/local
-    homebrew_prefix: "{{ '/opt/homebrew' if ansible_machine == 'arm64' else '/usr/local' }}"
+    homebrew_prefix: "{{ '/opt/homebrew' if ansible_facts['machine'] == 'arm64' else '/usr/local' }}"
   when: _register_shell_defined
   tags:
     - register_shell
@@ -45,12 +45,12 @@
   block:
     - name: Register shell in /etc/shells
       ansible.builtin.lineinfile:
-        path: /etc/shells
+        path: '{{ shells_file | default("/etc/shells") }}'
         line: '{{ shell_path }}'
         state: present
         create: yes
         mode: '0644'
-      become: yes
+      become: '{{ shells_file is not defined }}'
   rescue:
     - name: Provide helpful error message on registration failure
       ansible.builtin.fail:
