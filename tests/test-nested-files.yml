@@ -1,0 +1,63 @@
+---
+# Test that modules with a directory named "files" inside the stow files/
+# directory are handled correctly. This catches a greedy regex bug where
+# '^.*/files/' strips too much of the path, causing conflict detection
+# to check the wrong target path.
+- name: Test nested files directory in module
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/modules"
+      dest: "{{ lookup('env', 'HOME') }}/.dotmodules.test"
+      install:
+        - nested-files
+    home_dir: "{{ lookup('env', 'TMPDIR') | default('/tmp') }}/dotmodules-nested-files-test"
+  pre_tasks:
+    - name: Create temp home directory
+      ansible.builtin.file:
+        path: "{{ home_dir }}"
+        state: directory
+
+    - name: Create pre-existing file at the stow target path (simulates conflict)
+      ansible.builtin.file:
+        path: "{{ home_dir }}/.config/some-app/files"
+        state: directory
+    - name: Write conflicting file
+      ansible.builtin.copy:
+        dest: "{{ home_dir }}/.config/some-app/files/settings.json"
+        content: '{"old": true}'
+
+  roles:
+    - ansible-role-dotmodules
+
+  tasks:
+    - name: Check that nested files/settings.json was stowed to correct path
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.config/some-app/files/settings.json"
+      register: nested_file
+
+    - name: Assert file exists as a symlink (conflict was resolved)
+      ansible.builtin.assert:
+        that:
+          - nested_file.stat.exists
+          - nested_file.stat.islnk
+        fail_msg: >-
+          Expected symlink at {{ home_dir }}/.config/some-app/files/settings.json
+          but it {{ 'does not exist' if not nested_file.stat.exists else 'is not a symlink (conflict was not resolved)' }}.
+          The regex likely stripped too much of the path during conflict detection.
+        success_msg: "Nested files/ directory handled correctly — conflict was detected and resolved"
+
+    - name: Verify symlink points to the correct source
+      ansible.builtin.assert:
+        that:
+          - nested_file.stat.lnk_source == playbook_dir + '/modules/nested-files/files/.config/some-app/files/settings.json'
+        fail_msg: >-
+          Symlink target is {{ nested_file.stat.lnk_source }}, expected
+          {{ playbook_dir }}/modules/nested-files/files/.config/some-app/files/settings.json
+        success_msg: "Symlink target is correct"
+
+  post_tasks:
+    - name: Clean up temp home directory
+      ansible.builtin.file:
+        path: "{{ home_dir }}"
+        state: absent

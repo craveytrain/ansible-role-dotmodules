@@ -89,7 +89,7 @@ The following variables can be set to customize the behavior of this role:
   *Default:* `"https://github.com/craveytrain/dotmodules.git"`
 
 - **`dotmodules.dest`**
-  Destination directory for the cloned repository.
+  Destination directory for cloning remote repositories. Not used when `dotmodules.repo` is a local path (`file://` prefix or absolute path), since the source directory is used directly.
   *Default:* `"{{ ansible_env.HOME }}/.dotmodules"`
 
 - **`dotmodules.install`**
